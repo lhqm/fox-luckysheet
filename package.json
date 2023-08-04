@@ -10,6 +10,7 @@
   "dependencies": {
     "axios": "^1.4.0",
     "core-js": "^3.6.5",
+    "element-ui": "^2.15.13",
     "exceljs": "^4.3.0",
     "file-saver": "^2.0.5",
     "FileSaver": "^0.10.0",

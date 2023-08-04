@@ -7,13 +7,20 @@
         <input type="file" @change="uploadExcel" accept=".xlsx">
       </label>
 <!--      远端文件模态框开关-->
-      <button style="position: absolute;left: 6rem" class="origin-upload-button" @click="showModal = true">云端导入</button>
+      <button style="position: absolute;left: 6rem" class="origin-upload-button" @click="openModal">云端导入</button>
 <!--      模态框-->
       <div v-if="showModal" class="modal">
+<!--        ACK遮罩-->
         <div class="modal-content">
           <div class="modal-header">
             <h2 style="color: #285b44">请选择服务器文件</h2>
             <span class="close-button" @click="showModal = false">×</span>
+          </div>
+          <!--            ACK交互验证-->
+          <div>
+            <label style="font-size: small;color: #285b44;display: block;font-weight: bolder">在这里输入ACK以获取个人文件</label>
+            <input v-model="ak" class="ack-input" type="search" placeholder="你的APP签名">
+            <input v-model="sk" class="ack-input" type="search" placeholder="你的APP秘钥">
           </div>
           <div class="modal-body">
             <!-- 在这里填充表格内容 -->
@@ -48,6 +55,7 @@
           </div>
           <div class="modal-footer">
             <!-- 可以在这里添加底部按钮、操作等 -->
+            <button class="confirm-button" @click="login">登录</button>
             <button class="cancel-button" @click="showModal = false">取消</button>
             <button class="confirm-button"  @click="printSelectedName">确认</button>
           </div>
@@ -55,15 +63,15 @@
         </div>
       </div>
 <!--      模态框结束-->
-        <button style="left: 2rem" class="download-button" @click="downloadExcel">下载</button>
-        <button style="left: 3rem" class="save-button" @click="saveExcel">保存</button>
+        <button style="left: 1.5rem" class="download-button" @click="downloadExcel">下载</button>
+        <button style="left: 2rem" class="save-button" @click="saveExcel">保存</button>
     </div>
     <div
       id="luckysheet"
       style="margin:0;padding:0;position:absolute;width:100%;left: 0;top: 10%;bottom:0;box-shadow: #2c3e50 1px 1px"
     ></div>
 
-    <div v-show="isMaskShow" style="position: absolute;z-index: 1000;left: 0;top: 0;bottom: 0;right: 0; background: rgba(255, 255, 255, 0.8); text-align: center;font-size: 40px;align-items:center;justify-content: center;display:flex;">Downloading</div>
+    <div v-show="isMaskShow" style="position: absolute;z-index: 1000;left: 0;top: 0;bottom: 0;right: 0; background: rgba(255, 255, 255, 0.8); text-align: center;font-size: 40px;align-items:center;justify-content: center;display:flex;">下载中...</div>
 
   </div>
 </template>
@@ -73,6 +81,8 @@ import LuckyExcel from 'luckyexcel'
 //导入库export.js 这个文件是es6的，不能在普通的HTML文件直接引入js文件（虽然都是js文件，但是有区别，具体请百度es6与es5）！需要把es6转es5才可以直接引入使用！
 // eslint-disable-next-line no-unused-vars
 import {exportExcel, saveExcel} from './export'
+import PopupManager from 'element-ui/lib/utils/popup/popup-manager'
+PopupManager.zIndex=20000000000000000
 
 export default {
   name: 'HelloWorld',
@@ -81,6 +91,9 @@ export default {
   },
   data(){
     return {
+      //ack
+      ak:'',
+      sk:'',
       //选中文件
       selected: null,
       //当前激活文件序号
@@ -163,7 +176,9 @@ export default {
         that.downloadExcel();
       }
     });
-
+    //重设用户ACK
+    this.ak=localStorage.getItem("ak")==null?'':localStorage.getItem("ak")
+    this.sk=localStorage.getItem("sk")==null?'':localStorage.getItem("sk")
     //下边这几行代码可以把luckysheet的logo隐藏掉。但是出于开源精神，请尊重luckysheet的开源作者们的辛勤付出
     //如果实在是需要隐藏掉，请把这段代码移动到init()函数的末尾去。在这里只会在挂载时运行一次，之后重新渲染表格不会生效。
     // let title = document.getElementsByClassName("luckysheet-share-logo");
@@ -178,23 +193,24 @@ export default {
         const files = evt.target.files;
         const that=this;
         if(files==null || files.length===0){
-            alert("没有等待引入的文件...");
+            this.$message.error("没有等待引入的文件...");
             return;
         }
         let name = files[0].name;
         let suffixArr = name.split("."), suffix = suffixArr[suffixArr.length-1];
         if(suffix!=="xlsx"){
-            alert("只支持xlsx后缀的文件！");
+          this.$message.error("只支持xlsx后缀的文件！");
             return;
         }
       // eslint-disable-next-line no-unused-vars
         LuckyExcel.transformExcelToLucky(files[0], function(exportJson, luckysheetfile){
             if(exportJson.sheets==null || exportJson.sheets.length===0){
-                alert("读取内容失败。当前不支持读取后缀为xls的文件");
+              this.$message.error("读取内容失败。当前不支持读取后缀为xls的文件");
                 return;
             }
             window.luckysheet.destroy();
             that.init(exportJson.info.name,exportJson.sheets,exportJson.info.name.creator);
+            this.$message.success("导入成功")
         });
     },
     selectExcel(){
@@ -211,12 +227,13 @@ export default {
         LuckyExcel.transformExcelToLuckyByUrl(value, name, (exportJson, luckysheetfile) => {
 
             if(exportJson.sheets==null || exportJson.sheets.length===0){
-                alert("读取内容失败。当前不支持读取后缀为xls的文件");
+                this.$message.error("读取内容失败。当前不支持读取后缀为xls的文件");
                 return;
             }
             this.isMaskShow = false;
             window.luckysheet.destroy();
           this.init(exportJson.info.name,exportJson.sheets,exportJson.info.name.creator);
+          this.$message.success("导入成功")
           this.activeFileId=this.selected.id
         });
     },
@@ -224,9 +241,11 @@ export default {
     downloadExcel(){
       // eslint-disable-next-line no-undef
       exportExcel(luckysheet.getAllSheets(),luckysheet.getWorkbookName().replaceAll(".xlsx",""))
+      this.$message.success("下载完成")
+
     },
     saveExcel(){
-      alert("保存失败！远端服务器不可用！请点击[下载]保存表格")
+      this.$message.error("保存失败！远端服务器不可用！请点击[下载]保存表格")
       // eslint-disable-next-line no-undef
       saveExcel(luckysheet.getAllSheets(),luckysheet.getWorkbookName().replaceAll(".xlsx",""),this.activeFileId)
     },
@@ -282,6 +301,16 @@ export default {
         this.selectExcel()
         console.log(this.selected);
       }
+    },
+    openModal(){
+      this.showModal=true
+    },
+    login(){
+      console.log(this.ak+"\n"+this.sk);
+    //  在本地记录
+      localStorage.setItem("ak",this.ak)
+      localStorage.setItem("sk",this.sk)
+      this.$message.success("ACK已成功保存")
     }
   }
 }
@@ -368,8 +397,8 @@ a {
   top: 20vh;
   border-radius: 5px;
   padding: 10px;
-  width: 80vw;
-  max-height: 60vh;
+  width: 95vw;
+  max-height: 80vh;
   overflow: auto;
   border-top: #42b983 2px solid;
 }
@@ -479,7 +508,7 @@ button{
   font-weight: bold;
 }
 .table-wrapper {
-  max-height: 40vh;
+  max-height: 60vh;
   max-width: 100%;
   overflow: auto;
   margin: auto;
@@ -539,5 +568,25 @@ tbody td:first-child {
   background-color: rgba(66, 185, 131, 0.1); /* 自定义高亮颜色 */
   color: #42b983; /* 自定义高亮文字颜色 */
   overflow-inline: visible;
+}
+.ack-input{
+  width: 8rem;
+  height: 1.2rem;
+  margin-right: 1rem;
+  margin-left: 1rem;
+  margin-top: .5rem;
+  font-weight: bolder;
+  color: #42b983;
+  border: #42b983 1px solid;
+  border-radius: 3px;
+}
+.ack-input:hover{
+  border: #42b983 1px solid;
+}
+.ack-input:focus{
+  border: #42b983 1px solid;
+}
+.ack-input::selection{
+  border: #42b983 1px solid;
 }
 </style>
